@@ -18,7 +18,20 @@
         .backface-hidden { backface-visibility: hidden; }
         .rotate-y-180 { transform: rotateY(180deg); }
         .flip-card-inner { transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1); }
-        input[type="file"] { display: none; }
+        
+        /* 兼顧行動端相容性的隱藏檔案輸入框 */
+        input[type="file"] {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            border: 0;
+            opacity: 0;
+            pointer-events: none;
+        }
 
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -56,9 +69,9 @@
                     <i class="ph ph-info text-2xl"></i>
                 </button>
                 <!-- 匯入 CSV 按鈕 -->
-                <label class="cursor-pointer hover:bg-indigo-700 p-2 rounded-full transition-colors active:scale-95" title="匯入 CSV 單字庫">
+                <label for="csvFileInput" class="cursor-pointer hover:bg-indigo-700 p-2 rounded-full transition-colors active:scale-95 inline-flex items-center justify-center" title="匯入 CSV 單字庫">
                     <i class="ph ph-upload-simple text-2xl"></i>
-                    <input type="file" id="csvFileInput" accept=".csv">
+                    <input type="file" id="csvFileInput" accept=".csv,text/csv,text/plain,application/vnd.ms-excel">
                 </label>
             </div>
         </div>
@@ -111,11 +124,11 @@
             <!-- 空狀態提示（無任何單字卡時顯示） -->
             <div id="emptyState" class="absolute inset-4 flex flex-col items-center justify-center bg-slate-50 z-20 rounded-2xl border-2 border-dashed border-slate-300 p-6 text-center">
                 <i class="ph ph-file-csv text-5xl text-indigo-400 mb-3"></i>
-                <p class="text-slate-800 font-bold text-lg">尚未匯入單字卡</p>
-                <p class="text-slate-500 text-xs sm:text-sm mt-1 mb-5">請點選右上角的上傳圖示匯入 CSV 檔案開始學習</p>
-                <label class="cursor-pointer bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-medium text-sm py-2.5 px-6 rounded-xl shadow-md transition-all flex items-center gap-2">
-                    <i class="ph ph-upload-simple text-lg"></i> 選擇 CSV 檔案
-                    <input type="file" id="emptyCsvFileInput" accept=".csv">
+                <p class="text-slate-800 font-bold text-lg">尚未掛載單字卡</p>
+                <p class="text-slate-500 text-xs sm:text-sm mt-1 mb-5">請點選下方按鈕上傳 CSV，或將 <code class="bg-slate-200 px-1 py-0.5 rounded text-indigo-600 font-mono">words.csv</code> 放於 GitHub 專案根目錄</p>
+                <label for="emptyCsvFileInput" class="cursor-pointer bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-medium text-sm py-2.5 px-6 rounded-xl shadow-md transition-all flex items-center gap-2">
+                    <i class="ph ph-upload-simple text-lg"></i> 選擇本機 CSV 檔案
+                    <input type="file" id="emptyCsvFileInput" accept=".csv,text/csv,text/plain,application/vnd.ms-excel">
                 </label>
             </div>
 
@@ -234,7 +247,6 @@
             speechSynthesis.onvoiceschanged = populateVoiceList;
         }
 
-        // 挑選最接近真人的高品質英文語音
         function getBestEnglishVoice(lang = 'en-US') {
             if (!voices || voices.length === 0) return null;
             
@@ -256,7 +268,6 @@
             return null;
         }
 
-        // 朗讀字串
         function speakText(text, lang = 'en-US') {
             if (!synth) return;
             if (synth.speaking) synth.cancel();
@@ -275,7 +286,6 @@
             }
         }
 
-        // 計算字元層級 (Character-level) 的 Levenshtein 編輯距離
         function charLevenshtein(str1, str2) {
             const m = str1.length;
             const n = str2.length;
@@ -288,16 +298,15 @@
                 for (let j = 1; j <= n; j++) {
                     const cost = str1[i - 1] === str2[j - 1] ? 0 : 1;
                     d[i][j] = Math.min(
-                        d[i - 1][j] + 1,      // 刪除
-                        d[i][j - 1] + 1,      // 插入
-                        d[i - 1][j - 1] + cost // 替換
+                        d[i - 1][j] + 1,
+                        d[i][j - 1] + 1,
+                        d[i - 1][j - 1] + cost
                     );
                 }
             }
             return d[m][n];
         }
 
-        // 否定詞庫：涵蓋常見否定縮寫與單字
         const NEGATIVE_WORDS = new Set([
             'not', 'no', 'never', 'none', 'neither', 'nor', 'nothing', 'nobody', 'nowhere',
             "don't", "dont",
@@ -317,7 +326,6 @@
             "hadn't", "hadnt"
         ]);
 
-        // 單字層級的 Levenshtein 編輯距離評分，支援重大字彙偏離與語意反轉識別
         function evaluatePronunciation(referenceText, spokenText) {
             const tokenize = (text) => (text || '')
                 .toLowerCase()
@@ -345,7 +353,6 @@
                 };
             }
 
-            // 初始化動態規劃矩陣 (N+1 x M+1)，存儲最小編輯步數
             const dp = Array.from({ length: N + 1 }, () => new Array(M + 1).fill(0));
 
             for (let i = 0; i <= N; i++) dp[i][0] = i;
@@ -355,20 +362,19 @@
                 for (let j = 1; j <= M; j++) {
                     const cost = (refWords[i - 1] === spokenWords[j - 1]) ? 0 : 1;
                     dp[i][j] = Math.min(
-                        dp[i - 1][j] + 1,       // 漏字 (Deletion)
-                        dp[i][j - 1] + 1,       // 多字 (Insertion)
-                        dp[i - 1][j - 1] + cost // 錯字 (Substitution) 或相同
+                        dp[i - 1][j] + 1,
+                        dp[i][j - 1] + 1,
+                        dp[i - 1][j - 1] + cost
                     );
                 }
             }
 
-            // 回溯比對路徑，分析並分類錯誤類型與對應詞彙標記
             let i = N, j = M;
-            let missed = 0;      // 漏字
-            let extra = 0;       // 多字
-            let majorWrong = 0;  // 重大錯字 (差異 > 30%)
-            let minorWrong = 0;  // 小瑕疵 (差異 <= 30%)
-            const annotatedSpokenWords = []; // 用於 UI 高亮渲染：{ word, status: 'correct'|'minor'|'wrong'|'extra' }
+            let missed = 0;
+            let extra = 0;
+            let majorWrong = 0;
+            let minorWrong = 0;
+            const annotatedSpokenWords = [];
 
             while (i > 0 || j > 0) {
                 if (i > 0 && j > 0 && refWords[i - 1] === spokenWords[j - 1]) {
@@ -376,7 +382,6 @@
                     i--;
                     j--;
                 } else if (i > 0 && j > 0 && dp[i][j] === dp[i - 1][j - 1] + 1) {
-                    // 錯字替換：透過字元編輯距離判定是否為重大字彙偏離
                     const w1 = refWords[i - 1];
                     const w2 = spokenWords[j - 1];
                     const dist = charLevenshtein(w1, w2);
@@ -384,6 +389,624 @@
                     const diffRatio = maxLen > 0 ? (dist / maxLen) : 0;
 
                     if (diffRatio <= 0.3) {
-                        minorWrong++; // 差異 <= 30%：發音小瑕疵
+                        minorWrong++;
                         annotatedSpokenWords.unshift({ word: w2, status: 'minor', expected: w1 });
-   
+                    } else {
+                        majorWrong++;
+                        annotatedSpokenWords.unshift({ word: w2, status: 'wrong', expected: w1 });
+                    }
+                    i--;
+                    j--;
+                } else if (i > 0 && dp[i][j] === dp[i - 1][j] + 1) {
+                    missed++;
+                    i--;
+                } else {
+                    extra++;
+                    annotatedSpokenWords.unshift({ word: spokenWords[j - 1], status: 'extra' });
+                    j--;
+                }
+            }
+
+            const refNegCount = refWords.filter(w => NEGATIVE_WORDS.has(w)).length;
+            const spokenNegCount = spokenWords.filter(w => NEGATIVE_WORDS.has(w)).length;
+            const semanticReversal = (refNegCount !== spokenNegCount);
+
+            const standardPenalty = 10 / N;
+            const totalPenalty = (missed * standardPenalty) +
+                                 (extra * standardPenalty) +
+                                 (majorWrong * standardPenalty) +
+                                 (minorWrong * (standardPenalty * 0.5));
+
+            const semanticPenalty = semanticReversal ? 3.5 : 0;
+            const rawScore = 10 - totalPenalty - semanticPenalty;
+            const calculatedScore = Math.max(0, Math.round(rawScore * 10) / 10);
+            const totalErrors = dp[N][M];
+
+            let feedback = '';
+            let feedbackType = 'good';
+
+            if (calculatedScore >= 9.8 && totalErrors === 0) {
+                feedback = '🌟 Perfect! 發音非常清晰標準';
+                feedbackType = 'perfect';
+            } else if (semanticReversal) {
+                feedback = '⚠️ 嚴重失誤：漏唸或多唸否定詞，語意完全反轉';
+                feedbackType = 'error';
+            } else if (majorWrong > 0) {
+                feedback = `❌ 存在 ${majorWrong} 個重大錯字，請注意單字發音與重音`;
+                feedbackType = 'error';
+            } else if (minorWrong > 0 && missed === 0 && extra === 0) {
+                feedback = `💡 發音大致良好，但有 ${minorWrong} 個字有些微小瑕疵`;
+                feedbackType = 'warning';
+            } else if (missed > 0 && extra === 0) {
+                feedback = `👀 漏唸了 ${missed} 個單字，試著放慢速度唸完整`;
+                feedbackType = 'warning';
+            } else if (extra > 0 && missed === 0) {
+                feedback = `🗣️ 多唸了 ${extra} 個贅字或雜音，請盡量簡潔發音`;
+                feedbackType = 'warning';
+            } else {
+                feedback = '👍 表現不錯！多練習幾次會更流利';
+                feedbackType = 'good';
+            }
+
+            return {
+                score: calculatedScore,
+                totalWords: N,
+                majorWrong,
+                minorWrong,
+                missed,
+                extra,
+                totalErrors,
+                semanticReversal,
+                annotatedSpokenWords,
+                feedback,
+                feedbackType
+            };
+        }
+
+        function stopSpeechRecognition() {
+            if (currentRecognition) {
+                try {
+                    currentRecognition.abort();
+                } catch(e) {}
+                currentRecognition = null;
+            }
+            if (currentActiveRecordBtn) {
+                currentActiveRecordBtn.classList.remove('mic-recording');
+                currentActiveRecordBtn = null;
+            }
+        }
+
+        function startSpeechRecognition(btn, resultContainer, referenceText) {
+            if (!SpeechRecognition) {
+                resultContainer.textContent = "您的瀏覽器不支援 Web Speech API。";
+                resultContainer.classList.remove('hidden');
+                return;
+            }
+
+            if (currentRecognition && currentActiveRecordBtn === btn) {
+                currentRecognition.stop();
+                return;
+            }
+
+            stopSpeechRecognition();
+
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'en-US';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+
+            currentRecognition = recognition;
+            currentActiveRecordBtn = btn;
+            btn.classList.add('mic-recording');
+
+            recognition.onresult = (event) => {
+                if (event.results && event.results.length > 0) {
+                    const transcript = event.results[0][0].transcript;
+                    const evalResult = evaluatePronunciation(referenceText, transcript);
+
+                    const formattedTranscript = evalResult.annotatedSpokenWords.map(item => {
+                        if (item.status === 'correct') {
+                            return `<span class="text-emerald-600 font-semibold tracking-wide">${item.word}</span>`;
+                        } else if (item.status === 'minor') {
+                            return `<span class="text-amber-600 font-semibold border-b border-dashed border-amber-500 pb-0.5" title="期望發音: ${item.expected || ''}">${item.word}</span>`;
+                        } else {
+                            return `<span class="text-rose-600 font-semibold border-b-2 border-dashed border-rose-500 pb-0.5 word-wrong" title="${item.status === 'extra' ? '多唸的字' : '期望發音: ' + (item.expected || '')}">${item.word}</span>`;
+                        }
+                    }).join(' ');
+
+                    const feedbackColors = {
+                        perfect: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+                        good: 'text-indigo-700 bg-indigo-50 border-indigo-200',
+                        warning: 'text-amber-700 bg-amber-50 border-amber-200',
+                        error: 'text-rose-700 bg-rose-50 border-rose-200'
+                    };
+                    const feedbackBadgeStyle = feedbackColors[evalResult.feedbackType] || feedbackColors.good;
+
+                    resultContainer.innerHTML = `
+                        <div class="mt-1.5 p-2 sm:p-2.5 rounded-xl bg-slate-50 border border-slate-200 shadow-sm space-y-1.5">
+                            <div class="flex items-center justify-between gap-1.5 pb-1 border-b border-slate-200/70">
+                                <div class="flex items-center gap-1.5 shrink-0">
+                                    <span class="text-base sm:text-lg font-black tracking-tight leading-none ${evalResult.score >= 8 ? 'text-emerald-600' : evalResult.score >= 5 ? 'text-amber-600' : 'text-rose-600'}">
+                                        ${evalResult.score}<span class="text-[11px] font-semibold text-slate-400">/10分</span>
+                                    </span>
+                                    ${evalResult.semanticReversal ? '<span class="text-[10px] font-bold text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded leading-none border border-rose-200">語意反轉 -3.5</span>' : ''}
+                                </div>
+                                <div class="text-[11px] font-medium px-2 py-0.5 rounded-md border ${feedbackBadgeStyle} truncate text-right">
+                                    ${evalResult.feedback}
+                                </div>
+                            </div>
+                            <div class="text-[11px] sm:text-xs bg-white px-2 py-1.5 rounded-lg border border-slate-200 leading-snug break-words">
+                                ${formattedTranscript || `<span class="text-slate-400">${transcript}</span>`}
+                            </div>
+                            <div class="flex items-center justify-between text-[10px] text-slate-500 pt-0.5 px-0.5">
+                                <span>大錯字: <strong class="text-rose-500 font-bold">${evalResult.majorWrong}</strong></span>
+                                <span>小瑕疵: <strong class="text-amber-500 font-bold">${evalResult.minorWrong}</strong></span>
+                                <span>漏字: <strong class="text-slate-700 font-bold">${evalResult.missed}</strong></span>
+                                <span>多字: <strong class="text-slate-700 font-bold">${evalResult.extra}</strong></span>
+                            </div>
+                        </div>
+                    `;
+                    resultContainer.classList.remove('hidden');
+
+                    const topImg = backContent.querySelector('img');
+                    if (topImg) {
+                        topImg.classList.remove('max-h-24', 'max-h-28');
+                        topImg.classList.add('max-h-14');
+                    }
+                }
+            };
+
+            recognition.onerror = (event) => {
+                if (event.error !== 'no-speech' && event.error !== 'aborted') {
+                    resultContainer.textContent = `辨識錯誤: ${event.error}`;
+                    resultContainer.classList.remove('hidden');
+                }
+            };
+
+            recognition.onend = () => {
+                btn.classList.remove('mic-recording');
+                if (currentActiveRecordBtn === btn) {
+                    currentActiveRecordBtn = null;
+                    currentRecognition = null;
+                }
+            };
+
+            try {
+                recognition.start();
+            } catch (err) {
+                btn.classList.remove('mic-recording');
+                currentActiveRecordBtn = null;
+                currentRecognition = null;
+            }
+        }
+
+        // 強健型 CSV 解析器：支援 UTF-8 BOM 移除、分隔符號自動識別、忽略首行標題
+        function parseCSV(csvText) {
+            if (!csvText) return [];
+            
+            // 移除 UTF-8 BOM 特殊標記
+            csvText = csvText.replace(/^\uFEFF/, '').trim();
+            if (!csvText) return [];
+
+            // 自動識別分隔符號（逗號、分號或 Tab）
+            const firstLine = csvText.split(/\r\n|\n|\r/)[0] || '';
+            let delimiter = ',';
+            if (!firstLine.includes(',') && firstLine.includes(';')) delimiter = ';';
+            else if (!firstLine.includes(',') && firstLine.includes('\t')) delimiter = '\t';
+
+            const cards = [];
+            let currentWord = '', currentDetails = '', inQuotes = false, currentColumn = 0;
+
+            for (let i = 0; i < csvText.length; i++) {
+                let char = csvText[i];
+                if (char === '"') {
+                    if (inQuotes && csvText[i+1] === '"') {
+                        if (currentColumn === 0) currentWord += '"'; else currentDetails += '"';
+                        i++;
+                    } else inQuotes = !inQuotes;
+                } else if (char === delimiter && !inQuotes) {
+                    currentColumn++;
+                    if (currentColumn > 1) currentDetails += delimiter;
+                } else if ((char === '\n' || char === '\r') && !inQuotes) {
+                    if (char === '\r' && csvText[i+1] === '\n') i++;
+                    
+                    const word = currentWord.trim();
+                    if (word !== '') {
+                        // 忽略首行可能存在的表頭標記 (word, vocabulary, 單字等)
+                        const isHeader = (cards.length === 0) && [
+                            'word', 'vocabulary', 'vocab', '單字', 'english'
+                        ].includes(word.toLowerCase());
+
+                        if (!isHeader) {
+                            const details = currentDetails.split(/\n|<br>|\\n/).map(d => d.trim()).filter(d => d !== '');
+                            cards.push({ word: word, details: details });
+                        }
+                    }
+                    currentWord = ''; currentDetails = ''; currentColumn = 0;
+                } else {
+                    if (currentColumn === 0) currentWord += char; else currentDetails += char;
+                }
+            }
+
+            // 收尾最後一行
+            const lastWord = currentWord.trim();
+            if (lastWord !== '') {
+                const isHeader = (cards.length === 0) && [
+                    'word', 'vocabulary', 'vocab', '單字', 'english'
+                ].includes(lastWord.toLowerCase());
+
+                if (!isHeader) {
+                    const details = currentDetails.split(/\n|<br>|\\n/).map(d => d.trim()).filter(d => d !== '');
+                    cards.push({ word: lastWord, details: details });
+                }
+            }
+            return cards;
+        }
+
+        function saveProgress() {
+            try { 
+                localStorage.setItem('flashcardAppState', JSON.stringify({ 
+                    originalCards, flashcards, totalCards, stats, isFlipped 
+                })); 
+            } catch (e) { 
+                console.error("Save error", e); 
+            }
+        }
+
+        function loadProgress() {
+            try {
+                const saved = localStorage.getItem('flashcardAppState');
+                if (saved) {
+                    const state = JSON.parse(saved);
+                    if (state && state.originalCards && state.originalCards.length > 0) {
+                        originalCards = state.originalCards; 
+                        flashcards = state.flashcards;
+                        totalCards = state.totalCards; 
+                        stats = state.stats; 
+                        isFlipped = false;
+                        emptyState.style.display = 'none'; 
+                        updateUI(); 
+                        return true;
+                    }
+                }
+            } catch (e) { 
+                console.error("Load error", e); 
+            }
+            return false;
+        }
+        
+        function clearProgress() { 
+            try { localStorage.removeItem('flashcardAppState'); } catch(e){}
+        }
+
+        // 自動嘗試讀取 GitHub 儲存庫同層的預設 CSV 檔案 (例如 words.csv)
+        async function autoLoadRemoteCSV() {
+            const possibleFiles = ['words.csv', 'vocab.csv', 'data.csv', 'cards.csv'];
+            for (const file of possibleFiles) {
+                try {
+                    const res = await fetch(file, { cache: 'no-cache' });
+                    if (res.ok) {
+                        const text = await res.text();
+                        const parsed = parseCSV(text);
+                        if (parsed.length > 0) {
+                            originalCards = parsed;
+                            emptyState.style.display = 'none';
+                            resetPractice();
+                            console.log(`成功自動掛載遠端 CSV: ${file} (${parsed.length} 個單字)`);
+                            return true;
+                        }
+                    }
+                } catch (e) {
+                    // 若在本地 file:// 協議下 fetch 會受 CORS 限制，屬正常現象
+                }
+            }
+            return false;
+        }
+
+        // 處理本機檔案選取（加入 UTF-8 / Big5 雙編碼容錯處理）
+        function handleFileSelection(file) {
+            if (!file) return;
+            const reader = new FileReader();
+
+            reader.onload = function(event) {
+                const content = event.target.result;
+                let parsedCards = parseCSV(content);
+
+                // 若包含問號亂碼或解析為空，嘗試用 Windows 繁中常用的 Big5 編碼再試一次
+                if (parsedCards.length === 0 || content.includes('\uFFFD')) {
+                    const readerBig5 = new FileReader();
+                    readerBig5.onload = function(e2) {
+                        const parsedBig5 = parseCSV(e2.target.result);
+                        if (parsedBig5.length > 0) {
+                            originalCards = parsedBig5;
+                            emptyState.style.display = 'none';
+                            resetPractice();
+                            alert(`成功掛載 ${parsedBig5.length} 個單字！`);
+                        } else {
+                            alert('無法解析此 CSV 檔案，請確認內容格式為「單字, 釋義與例句」。');
+                        }
+                    };
+                    try {
+                        readerBig5.readAsText(file, 'Big5');
+                        return;
+                    } catch(err) {}
+                }
+
+                if (parsedCards.length > 0) {
+                    originalCards = parsedCards; 
+                    emptyState.style.display = 'none'; 
+                    resetPractice();
+                    alert(`成功掛載 ${parsedCards.length} 個單字！`);
+                } else {
+                    alert('此 CSV 檔案內容為空或無法識別欄位，請檢查檔案格式。');
+                }
+            };
+
+            reader.onerror = function() {
+                alert('讀取本機檔案失敗，請重新選取。');
+            };
+
+            reader.readAsText(file, 'UTF-8');
+        }
+
+        fileInput.addEventListener('change', (e) => {
+            handleFileSelection(e.target.files[0]);
+            e.target.value = '';
+        });
+
+        emptyCsvFileInput.addEventListener('change', (e) => {
+            handleFileSelection(e.target.files[0]);
+            e.target.value = '';
+        });
+
+        function resetPractice() {
+            stopSpeechRecognition();
+            flashcards = JSON.parse(JSON.stringify(originalCards));
+            totalCards = flashcards.length; 
+            stats = { again: 0, hard: 0, good: 0, easy: 0 };
+            isFlipped = false; 
+            preloadedImages.clear(); 
+            flashcard.style.transform = 'rotateY(0deg)';
+            updateUI(); 
+            saveProgress();
+        }
+
+        function preloadImages() {
+            const limit = Math.min(flashcards.length, 4);
+            for (let i = 0; i < limit; i++) {
+                const word = flashcards[i].word;
+                if (!preloadedImages.has(word)) {
+                    const imgUrl = `https://picsum.photos/seed/${encodeURIComponent(word)}/400/200`;
+                    const img = new Image(); 
+                    img.src = imgUrl; 
+                    preloadedImages.set(word, imgUrl);
+                }
+            }
+        }
+
+        function updateUI() {
+            stopSpeechRecognition();
+
+            if (totalCards === 0) {
+                emptyState.style.display = 'flex';
+                flashcard.style.display = 'none';
+                progressBar.style.width = '0%';
+                progressText.textContent = '0 / 0';
+                statsText.textContent = 'A:0 H:0 G:0 E:0';
+                return;
+            }
+
+            if (flashcards.length === 0) {
+                flashcard.style.display = 'none'; 
+                completionState.style.display = 'flex';
+                showAnswerBtn.classList.add('hidden'); 
+                srsControls.classList.add('hidden'); 
+                srsControls.classList.remove('grid');
+                
+                document.getElementById('completionStats').innerHTML = `
+                    <div class="font-medium text-slate-700">本次練習統計結果：</div>
+                    <div class="grid grid-cols-2 gap-2 mt-2 max-w-xs mx-auto text-left bg-white/70 p-3 rounded-xl border border-emerald-200">
+                        <span class="text-rose-600 font-semibold">Again: ${stats.again} 次</span>
+                        <span class="text-amber-600 font-semibold">Hard: ${stats.hard} 次</span>
+                        <span class="text-emerald-600 font-semibold">Good: ${stats.good} 次</span>
+                        <span class="text-sky-600 font-semibold">Easy: ${stats.easy} 次</span>
+                    </div>
+                `;
+                progressBar.style.width = `100%`; 
+                progressText.textContent = `0 / ${totalCards}`;
+                statsText.textContent = `A:${stats.again} H:${stats.hard} G:${stats.good} E:${stats.easy}`;
+                return;
+            }
+
+            flashcard.style.display = 'grid'; 
+            completionState.style.display = 'none';
+            emptyState.style.display = 'none';
+            
+            if (isFlipped) {
+                showAnswerBtn.classList.add('hidden'); 
+                srsControls.classList.remove('hidden'); 
+                srsControls.classList.add('grid');
+                flashcard.style.transform = 'rotateY(180deg)';
+            } else {
+                showAnswerBtn.classList.remove('hidden'); 
+                srsControls.classList.remove('grid'); 
+                srsControls.classList.add('hidden');
+                flashcard.style.transform = 'rotateY(0deg)';
+            }
+
+            const card = flashcards[0];
+            frontWord.textContent = card.word; 
+            backContent.innerHTML = '';
+            
+            const imgEl = document.createElement('img');
+            imgEl.src = preloadedImages.has(card.word) 
+                ? preloadedImages.get(card.word) 
+                : `https://picsum.photos/seed/${encodeURIComponent(card.word)}/400/200`;
+            imgEl.className = 'w-full h-auto max-h-20 sm:max-h-24 object-cover rounded-xl shadow-sm shrink-0 mb-1 bg-slate-100 border border-slate-100 transition-all duration-300';
+            imgEl.alt = card.word;
+            imgEl.onerror = function() { 
+                this.onerror = null; 
+                this.src = `https://placehold.co/400x200/e0e7ff/4338ca?text=${encodeURIComponent(card.word)}`; 
+            };
+            backContent.appendChild(imgEl);
+
+            card.details.forEach(detail => {
+                const detailEl = document.createElement('div');
+                detailEl.className = 'text-slate-700 text-xs sm:text-sm leading-snug border-b border-slate-100 pb-1.5 last:border-0 last:pb-0';
+                
+                const englishOnly = detail.replace(/[\u4e00-\u9fa5\uFF00-\uFFEF\u3000-\u303F]/g, '').trim();
+                const engWords = englishOnly.match(/[a-zA-Z']+/g) || [];
+                const engWordCount = engWords.length;
+                let isExampleSentence = false;
+                
+                const cleanedForCheck = englishOnly.replace(/\b(n|v|adj|adv|prep|pron|sb|sth)\./gi, '').trim();
+
+                if (detail.includes('例') || detail.includes('e.g.') || detail.toLowerCase().includes('ex:')) {
+                    isExampleSentence = true;
+                } else if (engWordCount >= 5) {
+                    isExampleSentence = true;
+                } else if (engWordCount >= 3 && /[.?!]["']?\s*$/.test(cleanedForCheck)) {
+                    isExampleSentence = true;
+                }
+                
+                if (/^[a-zA-Z\s,;/']+$/.test(englishOnly) && !/[.?!]/.test(englishOnly) && engWordCount < 5) {
+                    isExampleSentence = false;
+                }
+
+                if (isExampleSentence && engWordCount > 0) {
+                    detailEl.innerHTML = `
+                        <div class="flex items-start justify-between gap-1.5">
+                            <span class="flex-grow">${detail}</span>
+                            <div class="flex items-center gap-0.5 shrink-0 -mt-0.5">
+                                <button class="back-speak-btn text-indigo-500 hover:text-indigo-700 p-1 rounded-full hover:bg-indigo-50 transition-colors active:scale-90" data-text="${englishOnly.replace(/"/g, '&quot;')}" title="朗讀英文例句">
+                                    <i class="ph ph-speaker-high text-base sm:text-lg"></i>
+                                </button>
+                                <button class="record-btn text-emerald-600 hover:text-emerald-700 p-1 rounded-full hover:bg-emerald-50 transition-all active:scale-90" title="錄音練習發音">
+                                    <i class="ph ph-microphone text-base sm:text-lg"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="rec-result text-xs text-slate-500 mt-1 hidden"></div>
+                    `;
+
+                    const recBtn = detailEl.querySelector('.record-btn');
+                    const recResult = detailEl.querySelector('.rec-result');
+                    recBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        startSpeechRecognition(recBtn, recResult, englishOnly);
+                    });
+                } else {
+                    detailEl.textContent = detail;
+                }
+                
+                backContent.appendChild(detailEl);
+            });
+
+            document.querySelectorAll('.back-speak-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => { 
+                    e.stopPropagation(); 
+                    speakText(btn.getAttribute('data-text')); 
+                });
+            });
+
+            progressText.textContent = `${flashcards.length} / ${totalCards}`;
+            statsText.textContent = `A:${stats.again} H:${stats.hard} G:${stats.good} E:${stats.easy}`;
+            const completed = totalCards - flashcards.length;
+            progressBar.style.width = `${Math.round((completed / totalCards) * 100)}%`;
+
+            preloadImages();
+        }
+
+        function handleSRS(type) {
+            if (flashcards.length === 0 || !isFlipped) return;
+            const current = flashcards.shift(); 
+            stats[type]++;
+            
+            if (type === 'again') {
+                flashcards.splice(1, 0, current);
+            } else if (type === 'hard') {
+                flashcards.splice(Math.ceil(flashcards.length / 2), 0, current);
+            } else if (type === 'good') {
+                flashcards.push(current);
+            }
+
+            isFlipped = false; 
+            flashcard.style.transform = 'rotateY(0deg)';
+            saveProgress(); 
+            setTimeout(updateUI, 160);
+        }
+
+        flashcard.addEventListener('click', (e) => {
+            if (e.target.closest('button')) return;
+            if (flashcards.length === 0) return;
+            isFlipped = !isFlipped; 
+            flashcard.style.transform = isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)';
+            updateUI(); 
+            saveProgress();
+        });
+
+        showAnswerBtn.addEventListener('click', () => { 
+            if (!isFlipped && flashcards.length > 0) flashcard.click(); 
+        });
+
+        frontSpeakBtn.addEventListener('click', (e) => { 
+            e.stopPropagation(); 
+            if (flashcards.length > 0) speakText(flashcards[0].word); 
+        });
+
+        btnAgain.addEventListener('click', () => handleSRS('again'));
+        btnHard.addEventListener('click', () => handleSRS('hard'));
+        btnGood.addEventListener('click', () => handleSRS('good'));
+        btnEasy.addEventListener('click', () => handleSRS('easy'));
+        
+        restartBtn.addEventListener('click', () => { 
+            clearProgress(); 
+            resetPractice(); 
+        });
+
+        infoBtn.addEventListener('click', () => infoModal.classList.remove('hidden'));
+        closeInfoBtn.addEventListener('click', () => infoModal.classList.add('hidden'));
+        infoModal.addEventListener('click', (e) => { 
+            if (e.target === infoModal) infoModal.classList.add('hidden'); 
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (!infoModal.classList.contains('hidden')) { 
+                if (e.key === 'Escape') infoModal.classList.add('hidden'); 
+                return; 
+            }
+            if (flashcards.length === 0) return;
+            
+            switch(e.key) {
+                case ' ':
+                case 'ArrowUp':
+                case 'ArrowDown':
+                    e.preventDefault(); 
+                    flashcard.click(); 
+                    break;
+                case 'Enter':
+                    e.preventDefault(); 
+                    if (!isFlipped) {
+                        frontSpeakBtn.click(); 
+                    } else { 
+                        const firstSentenceBtn = backContent.querySelector('.back-speak-btn'); 
+                        if (firstSentenceBtn) firstSentenceBtn.click(); 
+                    }
+                    break;
+                case '1': if (isFlipped) btnAgain.click(); break;
+                case '2': if (isFlipped) btnHard.click(); break;
+                case '3': if (isFlipped) btnGood.click(); break;
+                case '4': if (isFlipped) btnEasy.click(); break;
+            }
+        });
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            const hasLocalProgress = loadProgress();
+            // 若本地暫存沒有紀錄，嘗試自動讀取伺服器上的同層 words.csv
+            if (!hasLocalProgress) {
+                await autoLoadRemoteCSV();
+            }
+        });
+    </script>
+</body>
+</html>
